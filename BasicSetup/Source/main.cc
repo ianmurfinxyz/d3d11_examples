@@ -289,6 +289,21 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	ID3D11Buffer* indexBuffer{};
 	ID3D11VertexShader* vertexShader{};
 	ID3D11PixelShader* pixelShader{};
+	ID3D11Buffer* cbPerObjectBuffer{};
+
+	d3d::XMMATRIX WVP{};
+	d3d::XMMATRIX worldMatrix{};
+	d3d::XMMATRIX viewMatrix{};
+	d3d::XMMATRIX projectionMatrix{};
+
+	d3d::XMVECTOR camPosition{};
+	d3d::XMVECTOR camTarget{};
+	d3d::XMVECTOR camUp{};
+
+	struct cbPerObject {
+		d3d::XMMATRIX  WVP;
+	};
+	cbPerObject cbPerObj{};
 
 	{
 		ID3DBlob* vsBlob = nullptr;
@@ -399,6 +414,30 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		d3dDeviceCtx->IASetInputLayout(inputLayout);
 		d3dDeviceCtx->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
+		D3D11_BUFFER_DESC cbbd;
+		ZeroMemory(&cbbd, sizeof(D3D11_BUFFER_DESC));
+		cbbd.Usage = D3D11_USAGE_DEFAULT;
+		cbbd.ByteWidth = sizeof(cbPerObject);
+		cbbd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+		cbbd.CPUAccessFlags = 0;
+		cbbd.MiscFlags = 0;
+		Check(d3dDevice->CreateBuffer(&cbbd, nullptr, &cbPerObjectBuffer));
+		assert(cbPerObjectBuffer);
+
+		camPosition = d3d::XMVectorSet(0.0f, 0.0f, -2.5f, 0.0f);
+		camTarget = d3d::XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+		camUp = d3d::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+
+		viewMatrix = d3d::XMMatrixLookAtLH(camPosition, camTarget, camUp);
+		projectionMatrix = d3d::XMMatrixPerspectiveFovLH(0.4f * 3.14f, (float)width / height, 1.0f, 1000.0f);
+		worldMatrix = d3d::XMMatrixIdentity();
+		WVP = worldMatrix * viewMatrix * projectionMatrix;
+
+		// hlsl and xmath matrices are opposite w.r.t column/row major so we need to transpose
+		cbPerObj.WVP = XMMatrixTranspose(WVP);
+		d3dDeviceCtx->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &cbPerObj, 0, 0);
+		d3dDeviceCtx->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
+
 		D3D11_VIEWPORT viewport;
 		ZeroMemory(&viewport, sizeof(D3D11_VIEWPORT));
 		viewport.TopLeftX = 0;
@@ -432,7 +471,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 					rgbDir[i] *= -1;
 			}
 			d3dDeviceCtx->ClearRenderTargetView(renderTargetView, rgb);
-			d3dDeviceCtx->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH|D3D11_CLEAR_STENCIL, 1.0f, 0);
+			d3dDeviceCtx->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 			// depth buffer makes rendering order independent
 			d3dDeviceCtx->DrawIndexed(6, 6, 0);
 			d3dDeviceCtx->DrawIndexed(6, 0, 0);
@@ -441,6 +480,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 	}
 
+	cbPerObjectBuffer->Release();
 	vertexBuffer->Release();
 	indexBuffer->Release();
 	vertexShader->Release();

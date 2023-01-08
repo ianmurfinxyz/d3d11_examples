@@ -3,10 +3,13 @@ struct VS_OUTPUT {
 	float4 color : COLOR;
 };
 
-VS_OUTPUT main(float4 inPos : POSITION, float4 inColor : COLOR)
-{
-    VS_OUTPUT output;
-    output.pos = inPos;
-    output.color = inColor;
-    return output;
+cbuffer cbPerObject {
+	float4x4 WVP;
+};
+
+VS_OUTPUT main(float4 inPos : POSITION, float4 inColor : COLOR) {
+	VS_OUTPUT output;
+	output.pos = mul(inPos, WVP);
+	output.color = inColor;
+	return output;
 }
