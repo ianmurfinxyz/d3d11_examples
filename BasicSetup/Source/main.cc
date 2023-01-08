@@ -290,6 +290,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	ID3D11VertexShader* vertexShader{};
 	ID3D11PixelShader* pixelShader{};
 	ID3D11Buffer* cbPerObjectBuffer{};
+	ID3D11RasterizerState* wireFrame{};
 
 	d3d::XMMATRIX WVP{};
 	d3d::XMMATRIX worldMatrix{};
@@ -438,6 +439,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		d3dDeviceCtx->UpdateSubresource(cbPerObjectBuffer, 0, NULL, &cbPerObj, 0, 0);
 		d3dDeviceCtx->VSSetConstantBuffers(0, 1, &cbPerObjectBuffer);
 
+		D3D11_RASTERIZER_DESC wfdesc;
+		ZeroMemory(&wfdesc, sizeof(D3D11_RASTERIZER_DESC));
+		ZeroMemory(&wfdesc, sizeof(D3D11_RASTERIZER_DESC));
+		wfdesc.FillMode = D3D11_FILL_WIREFRAME;
+		wfdesc.CullMode = D3D11_CULL_NONE;
+		hr = d3dDevice->CreateRasterizerState(&wfdesc, &wireFrame);
+		d3dDeviceCtx->RSSetState(wireFrame);
+
 		D3D11_VIEWPORT viewport;
 		ZeroMemory(&viewport, sizeof(D3D11_VIEWPORT));
 		viewport.TopLeftX = 0;
@@ -480,6 +489,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 	}
 
+	wireFrame->Release();
 	cbPerObjectBuffer->Release();
 	vertexBuffer->Release();
 	indexBuffer->Release();
