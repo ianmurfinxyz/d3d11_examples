@@ -50,8 +50,7 @@ void Terminate() {
 
 void Check(HRESULT result) {
 	if(result != S_OK) {
-		LogMsg(L"D3D/Win32 operation failed, terminating!");
-		std::exit(-1);
+		Terminate();
 	}
 }
 
@@ -214,6 +213,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	ID3D11DeviceContext* d3dDeviceCtx{};
 	IDXGISwapChain* d3dSwapChain{};
 	ID3D11RenderTargetView* renderTargetView{};
+	ID3D11DepthStencilView* depthStencilView{};
+	ID3D11Texture2D* depthStencilBuffer{};
 
 	{
 		DXGI_MODE_DESC backBufferDesc{};
@@ -250,13 +251,32 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			Terminate();
 		}
 
+		D3D11_TEXTURE2D_DESC depthStencilDesc;
+		ZeroMemory(&depthStencilDesc, sizeof(D3D11_TEXTURE2D_DESC));
+		depthStencilDesc.Width = width;
+		depthStencilDesc.Height = height;
+		depthStencilDesc.MipLevels = 1;
+		depthStencilDesc.ArraySize = 1;
+		depthStencilDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+		depthStencilDesc.SampleDesc.Count = 1;
+		depthStencilDesc.SampleDesc.Quality = 0;
+		depthStencilDesc.Usage = D3D11_USAGE_DEFAULT;
+		depthStencilDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+		depthStencilDesc.CPUAccessFlags = 0;
+		depthStencilDesc.MiscFlags = 0;
+
+		Check(d3dDevice->CreateTexture2D(&depthStencilDesc, NULL, &depthStencilBuffer));
+		assert(depthStencilBuffer);
+		Check(d3dDevice->CreateDepthStencilView(depthStencilBuffer, NULL, &depthStencilView));
+		assert(depthStencilView);
+
 		// get the backbuffer from the swap chain and set it as our render target
 		ID3D11Texture2D* d3dBackBuffer{};
 		Check(d3dSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&d3dBackBuffer));
 		assert(d3dBackBuffer != nullptr);
 		Check(d3dDevice->CreateRenderTargetView(d3dBackBuffer, nullptr, &renderTargetView));
 		assert(renderTargetView != nullptr);
-		d3dDeviceCtx->OMSetRenderTargets(1, &renderTargetView, nullptr);
+		d3dDeviceCtx->OMSetRenderTargets(1, &renderTargetView, depthStencilView);
 	}
 
 	struct Vertex {
@@ -309,29 +329,40 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 			Terminate();
 		}
 
-		Vertex squareVertices[]{
-			Vertex{{-0.5f, -0.5f, 0.5f}, {1.0f, 0.0f, 0.0f, 1.0f}},
-			Vertex{{-0.5f, 0.5f, 0.5f}, {0.0f, 1.0f, 0.0f, 1.0f}},
-			Vertex{{0.5f, 0.5f, 0.5f}, {0.0f, 0.0f, 1.0f, 1.0f}},
-			Vertex{{0.5f, -0.5f, 0.5f}, {0.0f, 1.0f, 0.0f, 1.0f}},
+		// smaller z value is by default drawn in front of larger
+		Vertex vertices[]{
+			// square A
+			Vertex{{-0.8f, -0.8f, 0.5f}, {0.8f, 0.8f, 0.8f, 0.8f}},
+			Vertex{{-0.8f, 0.2f, 0.5f}, {0.8f, 0.8f, 0.8f, 0.8f}},
+			Vertex{{0.2f, 0.2f, 0.5f}, {0.8f, 0.8f, 0.8f, 0.8f}},
+			Vertex{{0.2f, -0.8f, 0.5f}, {0.8f, 0.8f, 0.8f, 0.8f}},
+			// square B
+			Vertex{{-0.5f, -0.5f, 0.6f}, {0.4f, 0.4f, 0.4f, 1.f}},
+			Vertex{{-0.5f, 0.5f, 0.6f}, {0.4f, 0.4f, 0.4f, 1.f}},
+			Vertex{{0.5f, 0.5f, 0.6f}, {0.4f, 0.4f, 0.4f, 1.f}},
+			Vertex{{0.5f, -0.5f, 0.6f}, {0.4f, 0.4f, 0.4f, 1.f}},
 		};
 
 		DWORD squareIndices[] = {
+			// square A
 			0, 1, 2,
 			0, 2, 3,
+			// square B
+			4, 5, 6,
+			4, 6, 7,
 		};
 
 		D3D11_BUFFER_DESC vertexBufferDesc;
 		ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
 		vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-		vertexBufferDesc.ByteWidth = sizeof(Vertex) * 4;
+		vertexBufferDesc.ByteWidth = sizeof(Vertex) * 8;
 		vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
 		vertexBufferDesc.CPUAccessFlags = 0;
 		vertexBufferDesc.MiscFlags = 0;
 
 		D3D11_SUBRESOURCE_DATA vertexBufferData;
 		ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
-		vertexBufferData.pSysMem = squareVertices;
+		vertexBufferData.pSysMem = vertices;
 		if(d3dDevice->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &vertexBuffer) != S_OK) {
 			LogMsg("Failed creating vertex buffer");
 			Terminate();
@@ -340,7 +371,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		D3D11_BUFFER_DESC indexBufferDesc;
 		ZeroMemory(&indexBufferDesc, sizeof(indexBufferDesc));
 		indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-		indexBufferDesc.ByteWidth = sizeof(DWORD) * 2 * 3;
+		indexBufferDesc.ByteWidth = sizeof(DWORD) * 4 * 3;
 		indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
 		indexBufferDesc.CPUAccessFlags = 0;
 		indexBufferDesc.MiscFlags = 0;
@@ -374,6 +405,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		viewport.TopLeftY = 0;
 		viewport.Width = width;
 		viewport.Height = height;
+		viewport.MinDepth = 0.0f;
+		viewport.MaxDepth = 1.0f;
 
 		d3dDeviceCtx->RSSetViewports(1, &viewport);
 
@@ -399,7 +432,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 					rgbDir[i] *= -1;
 			}
 			d3dDeviceCtx->ClearRenderTargetView(renderTargetView, rgb);
+			d3dDeviceCtx->ClearDepthStencilView(depthStencilView, D3D11_CLEAR_DEPTH|D3D11_CLEAR_STENCIL, 1.0f, 0);
+			// depth buffer makes rendering order independent
+			d3dDeviceCtx->DrawIndexed(6, 6, 0);
 			d3dDeviceCtx->DrawIndexed(6, 0, 0);
+			d3dDeviceCtx->DrawIndexed(6, 6, 0);
 			d3dSwapChain->Present(0, 0);
 		}
 	}
@@ -411,6 +448,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	vertexShader->Release();
 	pixelShader->Release();
 	inputLayout->Release();
+	depthStencilView->Release();
+	depthStencilBuffer->Release();
 	d3dSwapChain->Release();
 	d3dDeviceCtx->Release();
 	d3dDevice->Release();
