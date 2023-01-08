@@ -261,6 +261,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 	struct Vertex {
 		d3d::XMFLOAT3 pos;
+		d3d::XMFLOAT4 color;
 	};
 
 	ID3D11InputLayout* inputLayout{};
@@ -298,6 +299,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 		D3D11_INPUT_ELEMENT_DESC layout[] = {
 			{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
+			{"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0},
 		};
 		UINT numElements = ARRAYSIZE(layout);
 
@@ -307,9 +309,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 		}
 
 		Vertex triangle[] = {
-			Vertex{{0.0f, 0.5f, 0.5f}},
-			Vertex{{0.5f, -0.5f, 0.5f}},
-			Vertex{{-0.5f, -0.5f, 0.5f}},
+			Vertex{{0.0f, 0.5f, 0.5f}, {1.0f, 0.0f, 0.0f, 1.0f}},
+			Vertex{{0.5f, -0.5f, 0.5f}, {0.0f, 1.0f, 0.0f, 1.0f}},
+			Vertex{{-0.5f, -0.5f, 0.5f}, {0.0f, 0.0f, 1.0f, 1.0f}},
 		};
 
 		D3D11_BUFFER_DESC vertexBufferDesc;
